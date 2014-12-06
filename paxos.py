@@ -27,8 +27,8 @@ class Paxos:
         self.highest_val = (-1, -1.0)
         self.accepted_highest_bal = -1
         self.accept_count = 0
-	self.max_accept = 3
-	self.sent_accept_to_all = 0
+        self.max_accept = 3
+        self.sent_accept_to_all = 0
 
     def get_prepare_response(self, bal):
         if bal >= self.ballot_num:
@@ -63,10 +63,10 @@ class Paxos:
                 print "sending accept"
                 msg = str("ACCEPT:" + str(self.ballot_num) + ":" + str(self.my_val))
                 self.send_to_all(msg, self.ip_list, self.port_list)
-		self.sent_accept_to_all = 1
+                self.sent_accept_to_all = 1
                 self.accept_num = self.ballot_num
                 self.accept_val = self.my_val
-                self.ack_count = 0
+                self.ack_count = 1
                 self.accepted_highest_bal = self.accept_num
                 self.accept_count = 1
 
@@ -75,7 +75,7 @@ class Paxos:
 
     def handle_accept(self, data):
         print "in HANDLE ACCEPT"
-	data_list = data.split(':')
+        data_list = data.split(':')
         print data, self.accepted_highest_bal
         bal = int(data_list[1])
         val = eval(data_list[2])
@@ -84,19 +84,19 @@ class Paxos:
             self.accept_count = 1
         elif bal == self.accepted_highest_bal:
             self.accept_count += 1
-	    print "Accept count is: ", self.accept_count
+            print "Accept count is: ", self.accept_count
         else:
             return # Ignore!!!
 
         if bal >= self.ballot_num and self.sent_accept_to_all == 0:
-	    self.sent_accept_to_all = 1
+            self.sent_accept_to_all = 1
             print "send ACCEPT to ALL only ONCE!"
-	    self.accept_num = bal
+            self.accept_num = bal
             self.accept_val = val
             self.ballot_num = bal # ?????
             msg = str("ACCEPT:" + str(bal) + ":" + str(val))
             self.send_to_all(msg, self.ip_list, self.port_list)
-	
+        
         if self.accept_count >= self.majority and self.accept_count < self.max_accept :
             print "DECIDED ON:", val
             self.data[val[0]] = val[1]
@@ -106,35 +106,38 @@ class Paxos:
             self.accept_val = (-1, -1.0)
             self.accepted_highest_bal = -1
             print "Current Data:", self.data
-	    print "\n \n"
+            print "\n \n"
 
     def req_handler(self, client_sock, addr):
-        while 1:
-            data = client_sock.recv(BUFFER_SIZE)
-            if not data:
-                break
-            else:
-                print "received ", data
-                if data.startswith("PREPARE"):
-                    msg = "Msg from server: Got ", data
-                    print "sending ack ", msg
-                    #self.send_single(msg, ip=self.ip_list[0], port=self.port_list[0])
-
-                    ballot_num = int(data.split(':')[1])
-                    print "ballotnum recd", ballot_num
-                    resp = self.get_prepare_response(ballot_num)
-                    print "prepare response:", resp
-                    self.send_single(resp, ip=self.ip_list[0], port=int(data.split(':')[2]))
-                    #client_sock.send(resp)
-                elif data.startswith("ACK") or data.startswith("NACK"):
-                    self.handle_ack(data)
-                elif data.startswith("ACCEPT"):
-                    self.handle_accept(data)
-                elif data.startswith("DECIDE"):
-                    msg = "Msg from server: Got - DECIDE"
+        try:
+            while 1:
+                data = client_sock.recv(BUFFER_SIZE)
+                if not data:
+                    break
                 else:
-                    msg = "Msg from server: Got data - %s" % data
-        client_sock.close()
+                    print "received ", data
+                    if data.startswith("PREPARE"):
+                        msg = "Msg from server: Got ", data
+                        print "sending ack ", msg
+                        #self.send_single(msg, ip=self.ip_list[0], port=self.port_list[0])
+
+                        ballot_num = int(data.split(':')[1])
+                        print "ballotnum recd", ballot_num
+                        resp = self.get_prepare_response(ballot_num)
+                        print "prepare response:", resp
+                        self.send_single(resp, ip=self.ip_list[0], port=int(data.split(':')[2]))
+                        #client_sock.send(resp)
+                    elif data.startswith("ACK") or data.startswith("NACK"):
+                        self.handle_ack(data)
+                    elif data.startswith("ACCEPT"):
+                        self.handle_accept(data)
+                    elif data.startswith("DECIDE"):
+                        msg = "Msg from server: Got - DECIDE"
+                    else:
+                        msg = "Msg from server: Got data - %s" % data
+            client_sock.close()
+        except Exception as ex:
+            print "Exception in req_handler:", ex
 
     def start_server(self):
         try:
