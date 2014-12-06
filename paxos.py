@@ -12,7 +12,7 @@ class Paxos:
 
 #    dl = DataLog()
     def __init__(self, listen_port=PORT, ip_list=None, port_list=None):
-        self.data = [None]*20
+        self.data = [None]*5
         self.latest_log_position = -1
         self.listen_port = listen_port
         self.ip_list = ip_list
@@ -21,12 +21,14 @@ class Paxos:
         self.accept_num = 0
         self.accept_val = (-1, -1.0) # (logposition, logentry)
         self.my_val = (-1, -1.0)
-        self.majority = len(ip_list)/2 
-        self.ack_count = 0
+        self.majority = len(ip_list)/2 + 1
+        self.ack_count = 1
         self.highest_bal = -1
         self.highest_val = (-1, -1.0)
         self.accepted_highest_bal = -1
         self.accept_count = 0
+	self.max_accept = 3
+	self.sent_accept_to_all = 0
 
     def get_prepare_response(self, bal):
         if bal >= self.ballot_num:
@@ -37,9 +39,10 @@ class Paxos:
         return str(reply)
 
     def handle_ack(self, data):
+        print "in Handle Ack"
         data_list = data.split(':')
         bal = int(data_list[1])
-        print self.ballot_num, bal
+        print "self ballot number: ",self.ballot_num, bal
         if bal != self.ballot_num: # Recd older ballot ack
             return
         if data_list[0]=="NACK":
@@ -60,16 +63,19 @@ class Paxos:
                 print "sending accept"
                 msg = str("ACCEPT:" + str(self.ballot_num) + ":" + str(self.my_val))
                 self.send_to_all(msg, self.ip_list, self.port_list)
+		self.sent_accept_to_all = 1
                 self.accept_num = self.ballot_num
                 self.accept_val = self.my_val
                 self.ack_count = 0
                 self.accepted_highest_bal = self.accept_num
                 self.accept_count = 1
+
         else:
             return
 
     def handle_accept(self, data):
-        data_list = data.split(':')
+        print "in HANDLE ACCEPT"
+	data_list = data.split(':')
         print data, self.accepted_highest_bal
         bal = int(data_list[1])
         val = eval(data_list[2])
@@ -78,17 +84,21 @@ class Paxos:
             self.accept_count = 1
         elif bal == self.accepted_highest_bal:
             self.accept_count += 1
+	    print "Accept count is: ", self.accept_count
         else:
             return # Ignore!!!
 
-        if bal >= self.ballot_num and self.accept_count == 1:
-            self.accept_num = bal
+        if bal >= self.ballot_num and self.sent_accept_to_all == 0:
+	    self.sent_accept_to_all = 1
+            print "send ACCEPT to ALL only ONCE!"
+	    self.accept_num = bal
             self.accept_val = val
             self.ballot_num = bal # ?????
             msg = str("ACCEPT:" + str(bal) + ":" + str(val))
             self.send_to_all(msg, self.ip_list, self.port_list)
-        if self.accept_count >= self.majority:
-            print "deciding on:", val
+	
+        if self.accept_count >= self.majority and self.accept_count < self.max_accept :
+            print "DECIDED ON:", val
             self.data[val[0]] = val[1]
             self.latest_log_position += 1
             self.accept_num = 0
@@ -96,6 +106,7 @@ class Paxos:
             self.accept_val = (-1, -1.0)
             self.accepted_highest_bal = -1
             print "Current Data:", self.data
+	    print "\n \n"
 
     def req_handler(self, client_sock, addr):
         while 1:
