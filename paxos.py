@@ -124,7 +124,7 @@ class Paxos:
                     print "ballotnum recd", ballot_num
                     resp = self.get_prepare_response(ballot_num)
                     print "prepare response:", resp
-                    self.send_single(resp, ip=self.ip_list[0], port=self.port_list[0])
+                    self.send_single(resp, ip=self.ip_list[0], port=int(data.split(':')[2]))
                     #client_sock.send(resp)
                 elif data.startswith("ACK") or data.startswith("NACK"):
                     self.handle_ack(data)
@@ -218,7 +218,7 @@ try:
             varlist = var.split(' ')
             p.ballot_num+=1
             p.my_val = (p.latest_log_position+1, varlist[1])
-            msg = str("PREPARE:"+str(p.ballot_num))
+            msg = str("PREPARE:"+str(p.ballot_num)+":"+str(p.listen_port))
             p.send_to_all(msg, p.ip_list, p.port_list)
             p.data
         #time.sleep(1)
