@@ -34,8 +34,12 @@ class Paxos:
         self.decided = False
         self.decide_lock = threading.Lock()
         self.accept_lock = threading.Lock()
+        #self.log_pos_lock = threading.Lock()
         self.my_success = threading.Event()
         self.my_success.clear()
+        self.my_success1 = threading.Event()
+        self.my_success1.clear()
+        self.state = 0 # 0-initial, 1-sent preapre/waiting for acks, 2-got acks, waiting for accepts, 3-got myvalue accepted, 4-failed/got someone else value accepted
 
     def prepare(self, val):
         #if self.my_oldval != (-1, -1.0):
@@ -45,11 +49,15 @@ class Paxos:
         self.highest_accept_val = (-1, -1.0, '')
         self.my_val = val
         self.my_success.clear()
-        self.ballot_num += 1
+        self.my_success1.clear()
+        #self.ballot_num += 1
+        self.ballot_num += self.listen_port*100+1
         self.recd_maj_acks = False
         self.decided = False
         msg = str("PREPARE:"+str(self.ballot_num)+":"+str(p.listen_port))
+        print "SENDING PREPARE from node ", self.listen_port%5
         self.send_to_all(msg, self.ip_list, self.port_list)
+        self.state = 1
 
     def get_prepare_response(self, bal):
         if bal > self.ballot_num:
@@ -63,12 +71,15 @@ class Paxos:
         print "in Handle Ack"
         data_list = data.split(':')
         bal = int(data_list[1])
-        print "self ballot number: ",self.ballot_num, bal
+        #print "self ballot number: ",self.ballot_num, bal
         if bal != self.ballot_num: # Recd older ballot ack
             return
         if data_list[0]=="NACK":
             #start new rouund
-            pass
+            self.state = 4
+            self.my_success.set()
+            print "got NACK in thread", self.listen_port%5
+            return
         elif data_list[0]=="ACK":
             accept_num = int(data_list[2])
             accept_val = eval(data_list[3])
@@ -77,21 +88,22 @@ class Paxos:
                 self.highest_accept_val = accept_val
             self.ack_count += 1
             with self.accept_lock:
-                print "ack count ", self.ack_count, " majority", self.majority
-                print self.ack_count==self.majority
+                #print "ack count ", self.ack_count, " majority", self.majority
+                #print self.ack_count==self.majority
                 if(self.ack_count >= self.majority and not self.recd_maj_acks):
-                    print "Got majority acks! Thanks guys."
+                    #print "Got majority acks! Thanks guys."
                     self.recd_maj_acks = True
                     if not(self.highest_accept_val[0] == -1):
                         #self.my_oldval = self.my_val
                         self.my_val = self.highest_accept_val
-                    print "sending accept"
+                    #print "sending accept"
                     msg = str("ACCEPT:" + str(self.ballot_num) + ":" + str(self.my_val))
                     self.send_to_all(msg, self.ip_list, self.port_list)
                     self.accept_count = 1
                     #self.sent_accept_to_all = 1
                     self.accept_num = self.ballot_num
                     self.accept_val = self.my_val
+                    self.state = 2
                     #self.accepted_highest_bal = self.accept_num
                     #self.ack_count = 1
 
@@ -99,15 +111,25 @@ class Paxos:
             return
 
     def handle_accept(self, data):
-        print "in HANDLE ACCEPT"
+        #print "in HANDLE ACCEPT"
         data_list = data.split(':')
-        print data, self.accept_num
+        #print data, self.accept_num
         bal = int(data_list[1])
         val = eval(data_list[2])
+        if self.state==3 or self.state==4:
+            return
         if val[0] <= self.latest_decided_val[0]:
             return
-        if bal > self.accept_num:
+        if self.state==1 and bal > self.my_val[0]:
+            self.state = 6
+            self.my_success.set()
+        if bal == self.accept_num:
+            self.accept_count += 1
+            #print "Accept count is: ", self.accept_count
+        elif bal > self.accept_num or self.state==1:
             self.accept_num = bal
+            self.state = 6
+            self.my_success.set()
             #if self.ballot_num < self.accept_num:
             #    self.ballot_num = self.accept_num
             self.accept_val = val
@@ -115,10 +137,8 @@ class Paxos:
             self.decided = False
             msg = str("ACCEPT:" + str(bal) + ":" + str(val))
             self.send_to_all(msg, self.ip_list, self.port_list)
-        elif bal == self.accept_num:
-            self.accept_count += 1
-            print "Accept count is: ", self.accept_count
         else:
+            print "at server", self.listen_port, "got bal", bal, " state=", self.state, "val", self.accept_val
             return # Ignore!!!
 
         '''if bal >= self.ballot_num and self.sent_accept_to_all == 0:
@@ -131,7 +151,7 @@ class Paxos:
             self.send_to_all(msg, self.ip_list, self.port_list)
         '''
         with self.decide_lock:
-            print "decided", self.decided
+            #print "decided", self.decided
             if self.accept_count >= self.majority and not self.decided:
                 self.decide(bal, val)
 
@@ -139,20 +159,48 @@ class Paxos:
             print "DECIDED ON:", val
             self.decided = True
             self.data[val[0]] = val[1]
-            self.latest_log_position += 1
+            self.latest_log_position = val[0]
+            #self.latest_log_position += 1
             self.latest_decided_val = val
             self.accept_num = 0
             self.accept_val = (-1, -1.0, '')
             #self.ballot_num = self.listen_port%5+1
             self.accept_count = 0
             if self.my_val==val:
-                self.my_val = (-1, -1.0, '')
+                self.state = 3
             else:
-                pass
+                self.state = 4
                 # retry in next round
             self.my_success.set()
-            print "Current Data:", self.data
+            self.my_success1.set()
+            #msg = str("DECIDE:" + str(bal) + ":" + str(val))
+            #self.send_to_all(msg, self.ip_list, self.port_list)
+            #print "Current Data:", self.data
             print "\n \n"
+
+    def handle_decide(self, data):
+        bal = int(data.split(':')[1])
+        val = eval(data.split(':')[2])
+        if self.latest_log_position == val[0]:
+            return
+        else:
+            #print "DECIDED ON:", val
+            self.decided = True
+            self.data[val[0]] = val[1]
+            self.latest_log_position = val[0]
+            #self.latest_log_position += 1
+            self.latest_decided_val = val
+            self.accept_num = 0
+            self.accept_val = (-1, -1.0, '')
+            #self.ballot_num = self.listen_port%5+1
+            self.accept_count = 0
+            if not self.my_val==val:
+                self.state = 4
+                # retry in next round
+            else:
+                self.state = 3
+            self.my_success.set()
+            
 
     def req_handler(self, client_sock, addr):
         try:
@@ -161,16 +209,15 @@ class Paxos:
                 if not data:
                     break
                 else:
-                    print "received ", data
+                    #print "received ", data
                     if data.startswith("PREPARE"):
-                        msg = "Msg from server: Got ", data
-                        print "sending ack ", msg
+                        #print "sending ack ", msg
                         #self.send_single(msg, ip=self.ip_list[0], port=self.port_list[0])
 
                         ballot_num = int(data.split(':')[1])
-                        print "ballotnum recd", ballot_num, " my ballot_num", self.ballot_num
+                        #print "ballotnum recd", ballot_num, " my ballot_num", self.ballot_num
                         resp = self.get_prepare_response(ballot_num)
-                        print "prepare response:", resp
+                        #print "prepare response:", resp
                         self.send_single(resp, ip=self.ip_list[0], port=int(data.split(':')[2]))
                         #client_sock.send(resp)
                     elif data.startswith("ACK") or data.startswith("NACK"):
@@ -178,6 +225,7 @@ class Paxos:
                     elif data.startswith("ACCEPT"):
                         self.handle_accept(data)
                     elif data.startswith("DECIDE"):
+                        #self.handle_decide(data)
                         msg = "Msg from server: Got - DECIDE"
                     else:
                         msg = "Msg from server: Got data - %s" % data
@@ -210,7 +258,7 @@ class Paxos:
 
     def send_single(self, message, ip, port=PORT):
         try:
-            print "Sending ", message, " to ", ip, port
+            #print "Sending ", message, " to ", ip, port
             client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             client.connect((ip, port))
             client.send(message)
@@ -251,6 +299,7 @@ class Paxos:
 
     def recover():
 """
+
 try:
     print sys.argv[1]
     p = Paxos(listen_port=int(sys.argv[1]), ip_list=['127.0.0.1', '127.0.0.1'], port_list=[int(sys.argv[2]), int(sys.argv[3])])
@@ -279,12 +328,14 @@ try:
             for i in xrange(5):
                 val = (p.latest_log_position+1, port*100+i, p.ip)
                 p.prepare(val)
-                p.my_success.wait()
-                if(p.my_val[0]==-1):
-                    print "SUCCESS!!", val
-                else:
-                    print "FAILED!! PLEASE RETRY.", val
+                #p.my_success1.wait()
+                #p.my_success1.clear()
                 time.sleep(5)
+                if p.state==3:
+                    print "--->>>>>>>>>------>>>>>>>------->>>>------SUCCESS!!!   node:",p.listen_port%5, val
+                else:
+                    print "---<<<<<---------<<<<<<<<--------<<<<-----FAILED!! PLEASE RETRY!!!    node:",p.listen_port%5, val
+                p.state=0
                 print "DATA AT SERVER ", port%5, "==========> ", p.data
             break
         #time.sleep(1)
