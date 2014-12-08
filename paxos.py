@@ -174,7 +174,8 @@ class Paxos:
             self.latest_decided_val = val
             self.accept_num = 0
             self.accept_val = (-1, -1.0, '')
-            self.ballot_num = self.def_ballot
+            #self.ballot_num = self.def_ballot
+            self.ballot_num = 0
             self.accept_count = 0
             if self.my_val==val:
                 self.state = 3
@@ -287,6 +288,7 @@ class Paxos:
 
     def send_to_all(self, message, ip_list, port_list):
         try:
+            print "Sending ", message, " to all "
             for ip, port in zip(ip_list, port_list):
                 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 client.connect((ip, port))
