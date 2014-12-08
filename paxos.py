@@ -4,7 +4,8 @@ import threading
 import sys
 import time
 
-IP = '127.0.0.1'
+#IP = '172.30.0.49'
+#IP = '127.0.0.1'
 PORT = 27100
 BUFFER_SIZE = 64
 
@@ -249,8 +250,10 @@ class Paxos:
     def start_server(self):
         try:
             self.server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.server_sock.bind((IP, self.listen_port))
+            #self.server_sock.bind((IP, self.listen_port))
+            self.server_sock.bind((self.ip, self.listen_port))
             self.server_sock.listen(1)
+            print "starting server on", self.ip
             while 1:
                 sock, addr = self.server_sock.accept()
                 #thread.start_new_thread(self.resp_handler, (sock, addr))
@@ -276,7 +279,7 @@ class Paxos:
             client.connect((ip, port))
             client.send(message)
         except Exception as ex:
-            print "Exception occurred in send_single: %s" % ex
+            print "Exception occurred in send_single: %s %s" % (ex, ip)
         finally:
             if client:
                 client.close()
@@ -289,7 +292,7 @@ class Paxos:
                 client.send(message)
                 client.close()
         except Exception as ex:
-            print "Exception occurred in send_to_all: %s" % ex
+            print "Exception occurred in send_to_all: %s %s" % (ex, ip)
         finally:
             if client:
                 client.close()
