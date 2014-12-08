@@ -223,7 +223,7 @@ class Paxos:
                 if not data:
                     break
                 else:
-                    #print "received ", data
+                    print "received ", data
                     if data.startswith("PREPARE"):
                         #print "sending ack ", msg
                         #self.send_single(msg, ip=self.ip_list[0], port=self.port_list[0])
@@ -275,7 +275,7 @@ class Paxos:
 
     def send_single(self, message, ip, port=PORT):
         try:
-            #print "Sending ", message, " to ", ip, port
+            print "Sending ", message, " to ", ip, port
             client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             client.connect((ip, port))
             client.send(message)
@@ -350,6 +350,9 @@ try:
         #var = "a"
         varlist = var.split(' ')
         if var.startswith("d"):
+            if len(varlist)<2:
+                print "Wrong command."
+                continue
             #p.ballot_num+=1
             val = (p.latest_log_position+1, varlist[1], p.ip)
             #msg = str("PREPARE:"+str(p.ballot_num)+":"+str(p.listen_port))
