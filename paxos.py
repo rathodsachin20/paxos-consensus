@@ -12,9 +12,10 @@ BUFFER_SIZE = 64
 class Paxos:
 
 #    dl = DataLog()
-    def __init__(self, myip, listen_port, ip_list, port_list, def_ballot):
+    def __init__(self, localip, myip, listen_port, ip_list, port_list, def_ballot):
         self.data = [None]*40
         self.latest_log_position = -1
+        self.localip = localip
         self.ip = myip #
         self.listen_port = listen_port
         self.ip_list = ip_list
@@ -251,9 +252,9 @@ class Paxos:
         try:
             self.server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             #self.server_sock.bind((IP, self.listen_port))
-            self.server_sock.bind((self.ip, self.listen_port))
+            self.server_sock.bind((self.localip, self.listen_port))
             self.server_sock.listen(1)
-            print "starting server on", self.ip
+            print "starting server on", self.localip
             while 1:
                 sock, addr = self.server_sock.accept()
                 #thread.start_new_thread(self.resp_handler, (sock, addr))
@@ -335,7 +336,7 @@ try:
 	ip_list.append(x.split(':')[0])
 	port_list.append(int(x.split(':')[1]))
     print "iplst:", ip_list, "ports:", port_list
-    p = Paxos(ip_list[0], port_list[0], ip_list=ip_list[1:], port_list=port_list[1:], def_ballot=def_ballot)
+    p = Paxos(iplist[0], ip_list[1], port_list[0], ip_list=ip_list[2:], port_list=port_list[2:], def_ballot=def_ballot)
     #thread.start_new_thread(p.start_server, ())
     tt = threading.Thread(target=p.start_server)
     tt.setDaemon(True)
