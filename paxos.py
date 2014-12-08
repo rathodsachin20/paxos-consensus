@@ -21,7 +21,7 @@ class Paxos:
         self.ip_list = ip_list
         self.port_list = port_list
 	self.def_ballot = def_ballot
-        self.ballot_num = def_ballot
+        self.ballot_num = 0
         self.accept_num = 0
         self.accept_val = (-1, -1.0, self.ip+";"+str(listen_port)) # (logposition, logentry)
         self.my_val = (-1, -1.0, self.ip+";"+str(listen_port))
