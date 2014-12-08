@@ -336,7 +336,7 @@ try:
 	ip_list.append(x.split(':')[0])
 	port_list.append(int(x.split(':')[1]))
     print "iplst:", ip_list, "ports:", port_list
-    p = Paxos(iplist[0], ip_list[1], port_list[0], ip_list=ip_list[2:], port_list=port_list[2:], def_ballot=def_ballot)
+    p = Paxos(ip_list[0], ip_list[1], port_list[0], ip_list=ip_list[2:], port_list=port_list[2:], def_ballot=def_ballot)
     #thread.start_new_thread(p.start_server, ())
     tt = threading.Thread(target=p.start_server)
     tt.setDaemon(True)
