@@ -46,6 +46,7 @@ class Paxos:
         self.state = 0 # 0-initial, 1-sent preapre/waiting for acks, 2-got acks, waiting for accepts, 3-got myvalue accepted, 4-failed/got someone else value accepted
         self.withdraw = False
         self.status_count = 0
+        self.balance = self.dl.get_current_value()
 
     def prepare(self, val):
         #if self.my_oldval != (-1, -1.0):
@@ -178,6 +179,8 @@ class Paxos:
             self.data[val[0]] = val[1]
             self.latest_log_position = val[0]
             self.dl.write_data(val[1], self.latest_log_position)
+            #self.balance = self.dl.get_current_value()
+            self.balance = self.balance + float(val[1])
             #self.latest_log_position += 1
             self.latest_decided_val = val
             self.accept_num = 0
@@ -253,6 +256,8 @@ class Paxos:
     def sync(self):
         try:
             elist = self.dl.get_empty_position_list()
+            if len(elist)==0:
+                return
             msg = "GIVE:" + elist
             max_size = 0
             newdict = {}
@@ -265,7 +270,9 @@ class Paxos:
                 for key, val in resp_dict.iteritems():
                     if not key in newdict:
                         newdict[key] = val
-            self.dl.update(newdict)
+            if len(newdict)>0:
+                self.dl.update(newdict)
+                self.balance = self.dl.get_current_value()
 
         except Exception as ex:
             print "Exception occurred in sync: %s %s" % (ex, ip)
@@ -370,6 +377,18 @@ class Paxos:
             if client:
                 client.close()
 
+    def get_balance(self):
+        self.sync()
+        return self.balance
+
+    def print_log(self):
+        dlist = self.dl.read_data_all()
+        for l in dlist:
+            if l<0:
+                print "Withdraw ", l
+            else:
+                print "Deposit ", l
+
 """
     # Initialize log
     def init_system():
@@ -416,12 +435,50 @@ try:
     #p.start_server()
 #    p.send_single("PREPARE", '127.0.0.1', int(sys.argv[2]))
     #tt.join()
-    time.sleep(3)
+    time.sleep(2)
     while 1:
         var = raw_input("Enter Command:")
-        #var = "a"
-        varlist = var.split(' ')
-        if var.startswith("d"):
+        varlist = var.split('(')
+        op = varlist[0].lower()
+        rem = varlist[1].split(')')
+        if len(rem)<2:
+            print "Wrong Commnad. Try again."
+        arg = rem[0]
+        if op=="balance":
+            print "Your balance is: ", p.get_balance()
+        elif op=="print":
+            print "Printing log: "
+            p.print_log()
+        elif op=="deposit":
+            p.sync()
+            amount = float(rem[0])
+            print "Trying to deposit amount ", amount
+            val = (p.latest_log_position+1, amount, p.ip)
+            p.prepare(val)
+            time.sleep(3)
+            if p.state==3:
+                print "Deposit Succeeded!"
+            else:
+                print "Deposit Failed!! Please retry!!",
+            p.state=0
+        elif op=="withdraw":
+            p.sync()
+            amount = float(rem[0])
+            print "Trying to withdraw amount ", amount
+            val = (p.latest_log_position+1, amount, p.ip)
+            p.prepare(val)
+            time.sleep(3)
+            if p.state==3:
+                print "Withdraw Succeeded!"
+            else:
+                print "Withdraw Failed!! Please retry!!",
+            p.state=0
+        elif op=="fail":
+            print "Failing this node."
+        elif op=="unfail":
+            print "Unfailing this node."
+        '''
+        elif var.startswith("d"):
             if len(varlist)<2:
                 print "Wrong command."
                 continue
@@ -458,6 +515,9 @@ try:
                 p.state=0
                 print "DATA AT SERVER ", port%5, "==========> ", p.data
             break
+        '''
+        else:
+            print "Wrong Command. Try again."
         #time.sleep(1)
 except KeyboardInterrupt:
     print "Closing Server!"
