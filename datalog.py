@@ -4,7 +4,7 @@ class DataLog:
 
     def __init__(self, name='log.txt'):
         self.logname = name
-        self.latest_position = -1
+        self.latest_position = self.get_latest_position()
 
     # Create log
     def create_log(self):
@@ -20,9 +20,9 @@ class DataLog:
         f = open(self.logname, 'a')
         for i in range(0, pos - self.latest_position -1):
             f.write('None,')
-        self.latest_position = pos
         f.write(str(value))
 	f.write(",")
+        self.latest_position = pos
 	f.close()
 
     # Read data at given position in log and return its value with sign

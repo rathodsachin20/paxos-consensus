@@ -13,6 +13,7 @@ class Paxos:
     #global dl 
     def __init__(self, localip, myip, listen_port, ip_list, port_list, def_ballot):
         self.dl = DataLog('log'+str(listen_port))
+        self.dl.create_log()
         self.data = [None]*40
         self.latest_log_position = -1
         self.localip = localip
@@ -20,7 +21,7 @@ class Paxos:
         self.listen_port = listen_port
         self.ip_list = ip_list
         self.port_list = port_list
-	self.def_ballot = def_ballot
+        self.def_ballot = def_ballot
         self.ballot_num = 0
         self.accept_num = 0
         self.accept_val = (-1, -1.0, self.ip+";"+str(listen_port)) # (logposition, logentry)
@@ -43,11 +44,14 @@ class Paxos:
         self.my_success1 = threading.Event()
         self.my_success1.clear()
         self.state = 0 # 0-initial, 1-sent preapre/waiting for acks, 2-got acks, waiting for accepts, 3-got myvalue accepted, 4-failed/got someone else value accepted
-	self.dl.create_log()
+        self.withdraw = False
+        self.status_count = 0
 
     def prepare(self, val):
         #if self.my_oldval != (-1, -1.0):
         #    return None
+        if val[1]<0:
+            self.withdraw = True
         self.ack_count = 1
         self.highest_accept_num = -1
         self.highest_accept_val = (-1, -1.0, '')
@@ -68,7 +72,7 @@ class Paxos:
             self.ballot_num = bal
             reply = "ACK:" + str(bal) + ":" + str(self.accept_num) + ":" + str(self.accept_val)
         else:
-            reply = "NACK:" + str(bal),":" + str(self.accept_num) + ":" + str(self.accept_val)
+            reply = "NACK:" + str(bal),":" + str(self.accept_num) + ":" + str(self.accept_val)+":"+str(self.latest_log_position)
         return str(reply)
 
     def handle_ack(self, data):
@@ -80,7 +84,9 @@ class Paxos:
              if bal != self.ballot_num: # Recd older ballot ack
                  return
              if data_list[0]=="NACK":
-                 #start new rouund
+                 # update data if old
+                 if self.latest_log_position < data_list[3]
+                     self.sync()
                  self.state = 4
                  self.my_success.set()
                  print "got NACK in thread", self.listen_port%5
@@ -170,7 +176,7 @@ class Paxos:
             print "DECIDED ON:", val
             self.decided = True
             self.data[val[0]] = val[1]
-	    self.latest_log_position = val[0]
+            self.latest_log_position = val[0]
             self.dl.write_data(val[1], self.latest_log_position)
             #self.latest_log_position += 1
             self.latest_decided_val = val
@@ -218,9 +224,59 @@ class Paxos:
                 self.my_success.set()
         except Exception as ex:    
             print "Exception occurred in handle_decide ", ex
-    
-    def inquire(self, data):
-       return 
+
+    def handle_inquire(self, data):
+        data_list = data.split(":")
+        pos = int(data_list[1])
+        ip = data_list[2]
+        port = int(data_list[3])
+        l = self.dl.read_from_pos(pos) #TODO:assumes no None in between
+        resp = "STATUS:"+pos+":"+str(l)
+        self.send_single(resp, ip, port)
+
+    def handle_status(self, data):
+        data_list = data.split(":")
+        pos = int(data_list[1])
+        if not pos<=self.latest_log_position:
+            return
+        self.status_count += 1
+        if self.status_count == self.majority:
+            
+    def handle_give(self, data):
+        try:
+            data_list = data.split(':')
+            givelist = eval(data_list[1])
+            return self.dl.get_filled_dict(givelist)
+        except Exception as ex:
+            print "Exception occurred in sync: %s %s" % (ex, ip)
+
+    def sync(self):
+        try:
+            elist = self.dl.get_empty_position_list()
+            msg = "GIVE:" + elist
+            max_size = 0
+            newdict = {}
+            for ip, port in zip(self.ip_list, self.port_list):
+                print "Sending ", message, " to ", ip, port
+                client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                client.connect((ip, port))
+                client.send(msg)
+                resp_dict = eval(client.recv[BUFFER_SIZE])
+                for key, val in resp_dict.iteritems():
+                    if not key in newdict:
+                        newdict[key] = val
+            self.dl.update(newdict)
+
+        except Exception as ex:
+            print "Exception occurred in sync: %s %s" % (ex, ip)
+        finally:
+            if client:
+                client.close()
+        #self.state = 10
+        #self.status_count = 1
+        #msg = "INQUIRE:" + self.latest_log_position) + ":"+self.ip+";"+str(p.listen_port)
+        #send_to_all(msg)
+        return 
 
     def req_handler(self, client_sock, addr):
         try:
@@ -233,10 +289,10 @@ class Paxos:
                     if data.startswith("PREPARE"):
                         #print "sending ack ", msg
                         #self.send_single(msg, ip=self.ip_list[0], port=self.port_list[0])
-			data_list = data.split(':')
-			#print "Datalist prepare", data_list
+                        data_list = data.split(':')
+                        #print "Datalist prepare", data_list
                         ballot_num = int(data_list[1])
-			val = eval(data_list[2])
+                        val = eval(data_list[2])
                         #print "ballotnum recd", ballot_num, " my ballot_num", self.ballot_num
                         resp = self.get_prepare_response(ballot_num, val)
                         #print "prepare response:", resp
@@ -246,16 +302,22 @@ class Paxos:
                         self.handle_ack(data)
                     elif data.startswith("ACCEPT"):
                         self.handle_accept(data)
+                    elif data.startswith("GIVE"):
+                        resp = self.handle_give(data)
+                        client_sock.send(str(resp))
                     elif data.startswith("DECIDE"):
                         #self.handle_decide(data)
                         msg = "Msg from server: Got - DECIDE"
-		    elif data.startswith("INQUIRE"):
-		        self.inquire(data)
+                    elif data.startswith("INQUIRE"):
+                        self.handle_inquire(data)
+                    elif data.startswith("STATUS"):
+                        self.handle_status(data)
                     else:
                         msg = "Msg from server: Got data - %s" % data
             client_sock.close()
         except Exception as ex:
             print "Exception in req_handler:", ex
+
 
     def start_server(self):
         try:
@@ -294,7 +356,7 @@ class Paxos:
             if client:
                 client.close()
 
-    def send_to_all(self, message, ip_list, port_list):
+    def send_to_all(self, message, ip_list=self.ip_list, port_list=self.port_list):
         try:
             print "Sending ", message, " to all "
             for ip, port in zip(ip_list, port_list):
@@ -343,8 +405,8 @@ try:
     print "default ballot:", def_ballot
 
     for x in ipport:
-	ip_list.append(x.split(':')[0])
-	port_list.append(int(x.split(':')[1]))
+        ip_list.append(x.split(':')[0])
+        port_list.append(int(x.split(':')[1]))
     print "iplst:", ip_list, "ports:", port_list
     p = Paxos(ip_list[0], ip_list[1], port_list[0], ip_list=ip_list[2:], port_list=port_list[2:], def_ballot=def_ballot)
     #thread.start_new_thread(p.start_server, ())
@@ -373,13 +435,14 @@ try:
                 print "--->>>>>>>>>------>>>>>>>------->>>>------SUCCESS!!!   node:",p.ip,p.listen_port%5, val
             else:
                 print "---<<<<<---------<<<<<<<<--------<<<<-----FAILED!! PLEASE RETRY!!!    node:",p.ip,p.listen_port%5, val
+                p.sync()
             p.state=0
             print p.data
         elif var.startswith('p'):
-	   #print p.data
-	    print p.dl.read_data_all()
+           #print p.data
+            print p.dl.read_data_all()
         elif var.startswith('b'):
-	    print p.dl.get_current_value()
+            print p.dl.get_current_value()
         elif var.startswith("a"):
             port = int(port_list[0])
             for i in xrange(5):
@@ -399,10 +462,10 @@ try:
 except KeyboardInterrupt:
     print "Closing Server!"
     if p:
-	p.stop_server()
+        p.stop_server()
 except Exception as ex:
     print "Exception occurred in start_server: %s" % ex
 finally:
     # TODO: save paxos state to disk
     if p:
-	p.stop_server()
+        p.stop_server()
