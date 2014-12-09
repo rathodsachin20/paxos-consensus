@@ -384,10 +384,14 @@ class Paxos:
     def print_log(self):
         dlist = self.dl.read_data_all()
         for l in dlist:
-            if l<0:
-                print "Withdraw ", l
+            if l=='None':
+                l = 0.0
             else:
-                print "Deposit ", l
+                amt = float(l)
+            if amt<0:
+                print "Withdraw ", amt
+            else:
+                print "Deposit ", amt
 
 """
     # Initialize log
@@ -409,6 +413,8 @@ class Paxos:
 """
 
 try:
+    if len(sys.argv)<2:
+        print "Wrong parameters. Format:", sys.argv[0], " <iplist_file> <default_ballot>"
     ipfile = sys.argv[1]
     #ipfile = 'iplist'
     with open(ipfile) as f:
