@@ -45,6 +45,8 @@ class Paxos:
         self.state = 0 # 0-initial, 1-sent preapre/waiting for acks, 2-got acks, waiting for accepts, 3-got myvalue accepted, 4-failed/got someone else value accepted
         self.status_count = 0
         self.balance = self.dl.get_current_value()
+        self.fail_flag =  threading.Event()
+        self.fail_flag.set()
         #self.dl.create_log()
 
     def prepare(self, val):
@@ -249,6 +251,8 @@ class Paxos:
                 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 try:
                     client.connect((ip, port))
+                    if not self.nofail_flag.is_set():
+                        self.nofail_flag.wait()
                     client.send(msg)
                     resp = client.recv(BUFFER_SIZE)
                     resp_dict = eval(resp)
@@ -276,6 +280,8 @@ class Paxos:
     def req_handler(self, client_sock, addr):
         try:
             while 1:
+                if not self.nofail_flag.is_set():
+                    self.fail_flag.wait()
                 data = client_sock.recv(BUFFER_SIZE)
                 if not data:
                     break
@@ -291,9 +297,12 @@ class Paxos:
                         #print "ballotnum recd", ballot_num, " my ballot_num", self.ballot_num
                         resp = self.get_prepare_response(ballot_num, val)
                         #print "prepare response:", resp
+                        if not self.nofail_flag.is_set():
+                            self.fail_flag.wait()
                         self.send_single(resp, ip=data_list[3].split(';')[0], port=int(data_list[3].split(';')[1]))
                         #client_sock.send(resp)
                     elif data.startswith("ACK") or data.startswith("NACK"):
+                        
                         self.handle_ack(data)
                     elif data.startswith("ACCEPT"):
                         self.handle_accept(data)
@@ -306,6 +315,8 @@ class Paxos:
                             msg = "FAILURE"
                         else:
                             msg = self.deposit(float(data_list[1]))
+                        if not self.nofail_flag.is_set():
+                            self.fail_flag.wait()
                         client_sock.send(str(msg))
                     elif data.upper().startswith("WITHDRAW"):
                         data_list = data.split(' ')
@@ -313,9 +324,13 @@ class Paxos:
                             msg = "FAILURE"
                         else:
                             msg = self.withdraw(float(data_list[1]))
+                        if not self.nofail_flag.is_set():
+                            self.fail_flag.wait()
                         client_sock.send(str(msg))
                     elif data.upper().startswith("BALANCE"):
                         msg = self.get_balance()
+                        if not self.nofail_flag.is_set():
+                            self.fail_flag.wait()
                         client_sock.send(str(msg))
                     elif data.startswith("DECIDE"):
                         #self.handle_decide(data)
@@ -357,6 +372,8 @@ class Paxos:
 
     def send_single(self, message, ip, port=PORT):
         try:
+            if not self.nofail_flag.is_set():
+                self.fail_flag.wait()
             #print "Sending ", message, " to ", ip, port
             client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             client.connect((ip, port))
@@ -372,6 +389,8 @@ class Paxos:
             #print "Sending ", message, " to all "
             for ip, port in zip(ip_list, port_list):
                 try:
+                    if not self.nofail_flag.is_set():
+                        self.fail_flag.wait()
                     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     client.connect((ip, port))
                     client.send(message)
@@ -433,6 +452,12 @@ class Paxos:
             msg = "FAILURE"
         p.state=0
         return msg
+
+    def fail(self):
+        self.nofail_flag.clear()
+
+    def unfail(self):
+        self.nofail_flag.set()
 
 try:
     if len(sys.argv)<2:
