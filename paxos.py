@@ -7,7 +7,7 @@ import time
 #IP = '172.30.0.49'
 #IP = '127.0.0.1'
 PORT = 27100
-BUFFER_SIZE = 64
+BUFFER_SIZE = 512
 
 class Paxos:
     #global dl 
@@ -196,7 +196,7 @@ class Paxos:
             #msg = str("DECIDE:" + str(bal) + ":" + str(val))
             #self.send_to_all(msg, self.ip_list, self.port_list)
             #print "Current Data:", self.data
-            print "\n \n"
+            #print "\n \n"
         except Exception as ex:
             print "Exception occurred in decide ", ex
 
@@ -237,7 +237,8 @@ class Paxos:
                 return {}
             return self.dl.get_filled_dict(givelist)
         except Exception as ex:
-            print "Exception occurred in handle_give: %s" % ex
+            #print "Exception occurred in handle_give: %s" % ex
+            pass
 
     def sync(self):
         try:
@@ -256,7 +257,8 @@ class Paxos:
                         if not key in newdict:
                             newdict[key] = val
                 except:
-                    print "Connection error in sync."
+                    #print "Connection error in sync."
+                    pass
                 if client:
                     client.close()
             if len(newdict)>0:
@@ -264,7 +266,8 @@ class Paxos:
                 self.balance = self.dl.get_current_value()
                 self.latest_log_position = self.dl.latest_position
         except Exception as ex:
-            print "Exception occurred in sync: %s" % ex
+            #print "Exception occurred in sync: %s" % ex
+            pass
         #finally:
             #if client:
             #    client.close()
@@ -325,7 +328,8 @@ class Paxos:
                     #elif data.startswith("STATUS"):
                     #    self.handle_status(data)
                     else:
-                        msg = "Msg from server: Got data - %s" % data
+                        #msg = "Msg from server: Got data - %s" % data
+                        pass
             client_sock.close()
         except Exception as ex:
             print "Exception in req_handler:", ex
@@ -362,7 +366,8 @@ class Paxos:
             client.connect((ip, port))
             client.send(message)
         except Exception as ex:
-            print "Exception occurred in send_single: %s %s" % (ex, ip)
+            #print "Exception occurred in send_single: %s %s" % (ex, ip)
+            pass
         finally:
             if client:
                 client.close()
@@ -377,7 +382,8 @@ class Paxos:
                     client.send(message)
                     client.close()
                 except Exception as ex:
-                    print "Connection erroe in send_to_all ", ex
+                    #print "Connection erroe in send_to_all ", ex
+                    pass
         except Exception as ex:
             print "Exception occurred in send_to_all: %s %s" % (ex, ip)
         finally:
