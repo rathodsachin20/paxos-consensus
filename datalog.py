@@ -42,7 +42,7 @@ class DataLog:
 	if self.get_latest_position() - position < 0:
 	    return L
 	else:
-	    for x in range(0,self.get_latest_position() - position)
+	    for x in range(0,self.get_latest_position() - position):
 	        L.append(st.split(',')[x+position])
 	f.close()
 	return L
@@ -80,19 +80,59 @@ class DataLog:
             total += val
 	f.close()
 	return total
+    
+    def get_empty_position_list(self):
+       f = open(self.logname,'r')
+       empty_pos_list = []
+       current_list = self.read_data_all()
+       for i in range(0,len(current_list)):
+            if(current_list[i] == 'None'):
+                empty_pos_list.append(i)
+       print empty_pos_list
+       f.close()
+       return empty_pos_list
+
+    def get_filled_dictionary(self, givelist):
+        f = open(self.logname,'r')
+        filled_dict = {}
+        current_list = self.read_data_all()
+        for val in givelist:
+        	if val<len(current_list) and current_list[val] != 'None':
+        		filled_dict[val] = current_list[val]
+        f.close()
+        print filled_dict
+        return filled_dict
+
+    def update(self, newdict):
+        f = open(self.logname,'r')
+        current_list = self.read_data_all()
+        max_index = max(newdict.keys())
+        if len(current_list) < max_index:
+            for i in range(0,max_index - len(current_list)+1):
+            	current_list.append('None')
+        #print current_list
+        for key,val in newdict.iteritems():
+        	    current_list[key] = val
+        print current_list
+        f.close()
+        fnew = open('updated_log.txt','w')
+        for item in current_list:
+        	fnew.write("%s,"%item)
+        self.delete_log(self.logname)
+        os.rename(fnew.name,self.logname)
+
 
     # Delete log
-    def delete_log(self):
-        file = "log.txt"
-        if os.path.isfile(file):
-	    os.remove(file)
+    def delete_log(self,filename):
+        if os.path.isfile(filename):
+	        os.remove(filename)
 	else:
 	    print "Log File Not Found"
 
 val = '1111'
-l = DataLog(val)
+l = DataLog()
 l.create_log()
-l.write_data(34.3, 0)
-l.write_data(22, 3)
 print l.read_data_all()
-print l.get_current_value()
+L= [0]
+newdict = {11:'99'}
+l.update(newdict)
