@@ -13,9 +13,8 @@ class Paxos:
     #global dl 
     def __init__(self, localip, myip, listen_port, ip_list, port_list, def_ballot):
         self.dl = DataLog('log'+str(listen_port))
-        self.dl.create_log()
         self.data = [None]*40
-        self.latest_log_position = -1
+        self.latest_log_position = self.dl.latest_position
         self.localip = localip
         self.ip = myip #
         self.listen_port = listen_port
@@ -44,15 +43,14 @@ class Paxos:
         self.my_success1 = threading.Event()
         self.my_success1.clear()
         self.state = 0 # 0-initial, 1-sent preapre/waiting for acks, 2-got acks, waiting for accepts, 3-got myvalue accepted, 4-failed/got someone else value accepted
-        self.withdraw = False
         self.status_count = 0
         self.balance = self.dl.get_current_value()
+        #self.dl.create_log()
 
     def prepare(self, val):
+        print "in prepare"
         #if self.my_oldval != (-1, -1.0):
         #    return None
-        if val[1]<0:
-            self.withdraw = True
         self.ack_count = 1
         self.highest_accept_num = -1
         self.highest_accept_val = (-1, -1.0, '')
@@ -86,7 +84,7 @@ class Paxos:
                  return
              if data_list[0]=="NACK":
                  # update data if old
-                 if self.latest_log_position < data_list[3]
+                 if self.latest_log_position < data_list[3]:
                      self.sync()
                  self.state = 4
                  self.my_success.set()
@@ -228,6 +226,7 @@ class Paxos:
         except Exception as ex:    
             print "Exception occurred in handle_decide ", ex
 
+    '''
     def handle_inquire(self, data):
         data_list = data.split(":")
         pos = int(data_list[1])
@@ -244,46 +243,57 @@ class Paxos:
             return
         self.status_count += 1
         if self.status_count == self.majority:
-            
+    '''
+
     def handle_give(self, data):
         try:
             data_list = data.split(':')
             givelist = eval(data_list[1])
             return self.dl.get_filled_dict(givelist)
         except Exception as ex:
-            print "Exception occurred in sync: %s %s" % (ex, ip)
+            print "Exception occurred in handle_give: %s" % ex
 
     def sync(self):
+        print "Syncing."
         try:
             elist = self.dl.get_empty_position_list()
             if len(elist)==0:
                 return
-            msg = "GIVE:" + elist
+            msg = "GIVE:" + str(elist)
             max_size = 0
             newdict = {}
             for ip, port in zip(self.ip_list, self.port_list):
-                print "Sending ", message, " to ", ip, port
+                print "Sending ", msg, " to ", ip, port
                 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                client.connect((ip, port))
-                client.send(msg)
-                resp_dict = eval(client.recv[BUFFER_SIZE])
-                for key, val in resp_dict.iteritems():
-                    if not key in newdict:
-                        newdict[key] = val
+                try:
+                    client.connect((ip, port))
+                    client.send(msg)
+                    print "sent give, waiting for recv"
+                    resp = client.recv(BUFFER_SIZE)
+                    print "Recv", resp
+                    resp_dict = eval(resp)
+                    print "Revcd dict", resp_dict, type(resp_dict)
+                    for key, val in resp_dict.iteritems():
+                        if not key in newdict:
+                            newdict[key] = val
+                except:
+                    print "Connection error in sync."
+                if client:
+                    client.close()
+            print "updating with dict"
             if len(newdict)>0:
                 self.dl.update(newdict)
                 self.balance = self.dl.get_current_value()
-
+            print "Sync complete"
         except Exception as ex:
-            print "Exception occurred in sync: %s %s" % (ex, ip)
-        finally:
-            if client:
-                client.close()
+            print "Exception occurred in sync: %s" % ex
+        #finally:
+            #if client:
+            #    client.close()
         #self.state = 10
         #self.status_count = 1
         #msg = "INQUIRE:" + self.latest_log_position) + ":"+self.ip+";"+str(p.listen_port)
         #send_to_all(msg)
-        return 
 
     def req_handler(self, client_sock, addr):
         try:
@@ -315,10 +325,10 @@ class Paxos:
                     elif data.startswith("DECIDE"):
                         #self.handle_decide(data)
                         msg = "Msg from server: Got - DECIDE"
-                    elif data.startswith("INQUIRE"):
-                        self.handle_inquire(data)
-                    elif data.startswith("STATUS"):
-                        self.handle_status(data)
+                    #elif data.startswith("INQUIRE"):
+                    #    self.handle_inquire(data)
+                    #elif data.startswith("STATUS"):
+                    #    self.handle_status(data)
                     else:
                         msg = "Msg from server: Got data - %s" % data
             client_sock.close()
@@ -363,7 +373,7 @@ class Paxos:
             if client:
                 client.close()
 
-    def send_to_all(self, message, ip_list=self.ip_list, port_list=self.port_list):
+    def send_to_all(self, message, ip_list, port_list):
         try:
             print "Sending ", message, " to all "
             for ip, port in zip(ip_list, port_list):
@@ -385,32 +395,13 @@ class Paxos:
         dlist = self.dl.read_data_all()
         for l in dlist:
             if l=='None':
-                l = 0.0
+                amt = 0.0
             else:
                 amt = float(l)
             if amt<0:
                 print "Withdraw ", amt
             else:
                 print "Deposit ", amt
-
-"""
-    # Initialize log
-    def init_system():
-
-    def update_log():
-
-    def deposit(value):
-
-    def withdraw(value):
-
-    def balance():
-
-    def get_log_position():
-
-    def broadcast(value):
-
-    def recover():
-"""
 
 try:
     if len(sys.argv)<2:
@@ -445,10 +436,15 @@ try:
     while 1:
         var = raw_input("Enter Command:")
         varlist = var.split('(')
+        if len(varlist)<2:
+            print "Wrong Commnad. Try again."
+            continue
         op = varlist[0].lower()
+        print "op=", op
         rem = varlist[1].split(')')
         if len(rem)<2:
             print "Wrong Commnad. Try again."
+            continue
         arg = rem[0]
         if op=="balance":
             print "Your balance is: ", p.get_balance()
@@ -456,9 +452,9 @@ try:
             print "Printing log: "
             p.print_log()
         elif op=="deposit":
-            p.sync()
             amount = float(rem[0])
             print "Trying to deposit amount ", amount
+            p.sync()
             val = (p.latest_log_position+1, amount, p.ip)
             p.prepare(val)
             time.sleep(3)
@@ -468,9 +464,13 @@ try:
                 print "Deposit Failed!! Please retry!!",
             p.state=0
         elif op=="withdraw":
-            p.sync()
             amount = float(rem[0])
+            if amount>p.get_balance():
+                print "Not enough balance! Try lesser amount."
+                continue
+            amount *= -1
             print "Trying to withdraw amount ", amount
+            p.sync()
             val = (p.latest_log_position+1, amount, p.ip)
             p.prepare(val)
             time.sleep(3)
@@ -483,7 +483,10 @@ try:
             print "Failing this node."
         elif op=="unfail":
             print "Unfailing this node."
-        '''
+        else:
+            print "Wrong Command. Try again."
+            continue
+        """
         elif var.startswith("d"):
             if len(varlist)<2:
                 print "Wrong command."
@@ -521,9 +524,7 @@ try:
                 p.state=0
                 print "DATA AT SERVER ", port%5, "==========> ", p.data
             break
-        '''
-        else:
-            print "Wrong Command. Try again."
+        """
         #time.sleep(1)
 except KeyboardInterrupt:
     print "Closing Server!"
