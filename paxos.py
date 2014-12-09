@@ -45,8 +45,8 @@ class Paxos:
         self.state = 0 # 0-initial, 1-sent preapre/waiting for acks, 2-got acks, waiting for accepts, 3-got myvalue accepted, 4-failed/got someone else value accepted
         self.status_count = 0
         self.balance = self.dl.get_current_value()
-        self.fail_flag =  threading.Event()
-        self.fail_flag.set()
+        self.nofail_flag =  threading.Event()
+        self.nofail_flag.set()
         #self.dl.create_log()
 
     def prepare(self, val):
