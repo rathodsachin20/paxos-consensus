@@ -138,6 +138,8 @@ class DataLog:
         os.rename('updated_log.txt', self.logname)
         time.sleep(1)
         self.balance = self.read_current_value()
+        self.latest_position = self.get_latest_position()
+
 
 
     # Delete log
