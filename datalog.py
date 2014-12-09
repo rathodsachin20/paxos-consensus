@@ -37,6 +37,15 @@ class DataLog:
 
     def read_from_pos(self,position):
         f = open(self.logname, 'r')
+	st = f.read()
+	L = []
+	if self.get_latest_position() - position < 0:
+	    return L
+	else:
+	    for x in range(0,self.get_latest_position() - position)
+	        L.append(st.split(',')[x+position])
+	f.close()
+	return L
 
     def get_latest_position(self):
         f = open(self.logname, 'r')
