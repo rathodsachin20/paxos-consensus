@@ -229,12 +229,12 @@ class Paxos:
     def handle_give(self, data):
         try:
             data_list = data.split(':')
-	    latest_pos = int(data_list[2])
+            latest_pos = int(data_list[2])
             givelist = eval(data_list[1])
-	    for i in range(0,self.latest_log_position - latest_pos):
-		givelist.append(i+latest_pos)
-	    if len(givelist) == 0:
-		return {}
+            for i in range(0,self.latest_log_position - latest_pos):
+                givelist.append(i+latest_pos)
+            if len(givelist) == 0:
+                return {}
             return self.dl.get_filled_dict(givelist)
         except Exception as ex:
             print "Exception occurred in handle_give: %s" % ex
@@ -262,7 +262,7 @@ class Paxos:
             if len(newdict)>0:
                 self.dl.update(newdict)
                 self.balance = self.dl.get_current_value()
-		self.latest_log_position = self.dl.latest_position
+                self.latest_log_position = self.dl.latest_position
         except Exception as ex:
             print "Exception occurred in sync: %s" % ex
         #finally:
@@ -400,7 +400,7 @@ class Paxos:
             else:
                 print "Deposit ", amt
 
-     def deposit(self, amount):
+    def deposit(self, amount):
         #print "Trying to deposit amount ", amount
         p.sync()
         val = (p.latest_log_position+1, amount, p.ip)
@@ -418,7 +418,7 @@ class Paxos:
     def withdraw(self, amount):
         if amount>p.get_balance():
             print "Not enough balance! Try lesser amount."
-            continue
+            return
         amount *= -1
         #print "Trying to withdraw amount ", amount
         p.sync()
@@ -484,7 +484,7 @@ try:
         elif op=="deposit":
             p.deposit(float(rem[0]))
         elif op=="withdraw":
-            p.deposit(float(rem[0]))
+            p.withdraw(float(rem[0]))
         elif op=="fail":
             print "Failing this node."
         elif op=="unfail":
