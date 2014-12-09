@@ -13,7 +13,7 @@ class Paxos:
     #global dl 
     def __init__(self, localip, myip, listen_port, ip_list, port_list, def_ballot):
         self.dl = DataLog('log'+str(listen_port))
-        self.data = [None]*40
+        #self.data = [None]*40
         self.latest_log_position = self.dl.latest_position
         self.localip = localip
         self.ip = myip #
@@ -38,31 +38,31 @@ class Paxos:
         self.decide_lock = threading.Lock()
         self.accept_lock = threading.Lock()
         #self.log_pos_lock = threading.Lock()
-        self.my_success = threading.Event()
-        self.my_success.clear()
-        self.my_success1 = threading.Event()
-        self.my_success1.clear()
+        #self.my_success = threading.Event()
+        #self.my_success.clear()
+        #self.my_success1 = threading.Event()
+        #self.my_success1.clear()
         self.state = 0 # 0-initial, 1-sent preapre/waiting for acks, 2-got acks, waiting for accepts, 3-got myvalue accepted, 4-failed/got someone else value accepted
         self.status_count = 0
         self.balance = self.dl.get_current_value()
         #self.dl.create_log()
 
     def prepare(self, val):
-        print "in prepare"
+        #print "in prepare"
         #if self.my_oldval != (-1, -1.0):
         #    return None
         self.ack_count = 1
         self.highest_accept_num = -1
         self.highest_accept_val = (-1, -1.0, '')
         self.my_val = val
-        self.my_success.clear()
-        self.my_success1.clear()
+        #self.my_success.clear()
+        #self.my_success1.clear()
         #self.ballot_num += 1
         self.ballot_num += self.def_ballot+1
         self.recd_maj_acks = False
         self.decided = False
         msg = str("PREPARE:"+str(self.ballot_num)+":"+str(self.my_val)+":"+self.ip+";"+str(p.listen_port))
-        print "SENDING PREPARE from node ", self.listen_port%5
+        #print "SENDING PREPARE from node ", self.listen_port%5
         self.send_to_all(msg, self.ip_list, self.port_list)
         self.state = 1
 
@@ -76,7 +76,7 @@ class Paxos:
 
     def handle_ack(self, data):
         try:
-             print "in Handle Ack"
+             #print "in Handle Ack"
              data_list = data.split(':')
              bal = int(data_list[1])
              #print "self ballot number: ",self.ballot_num, bal
@@ -87,8 +87,8 @@ class Paxos:
                  if self.latest_log_position < data_list[3]:
                      self.sync()
                  self.state = 4
-                 self.my_success.set()
-                 print "got NACK in thread", self.listen_port%5
+                 #self.my_success.set()
+                 #print "got NACK in thread", self.listen_port%5
                  return
              elif data_list[0]=="ACK":
                  accept_num = int(data_list[2])
@@ -98,10 +98,10 @@ class Paxos:
                      self.highest_accept_val = accept_val
                  self.ack_count += 1
                  with self.accept_lock:
-                     print "ack count ", self.ack_count, " majority", self.majority
+                     #print "ack count ", self.ack_count, " majority", self.majority
                      #print self.ack_count==self.majority
                      if(self.ack_count >= self.majority and not self.recd_maj_acks):
-                         print "Got majority acks! Thanks guys."
+                         #print "Got majority acks! Thanks guys."
                          self.recd_maj_acks = True
                          if not(self.highest_accept_val[0] == -1):
                              #self.my_oldval = self.my_val
@@ -135,14 +135,14 @@ class Paxos:
                 return
             if self.state==1 and bal > self.my_val[0]:
                 self.state = 6
-                self.my_success.set()
+                #self.my_success.set()
             if bal == self.accept_num:
                 self.accept_count += 1
                 #print "Accept count is: ", self.accept_count
             elif bal > self.accept_num or self.state==1:
                 self.accept_num = bal
                 self.state = 6
-                self.my_success.set()
+                #self.my_success.set()
                 #if self.ballot_num < self.accept_num:
                 #    self.ballot_num = self.accept_num
                 self.accept_val = val
@@ -172,9 +172,9 @@ class Paxos:
 
     def decide(self, bal, val):
         try:
-            print "DECIDED ON:", val
+            #print "DECIDED ON:", val
             self.decided = True
-            self.data[val[0]] = val[1]
+            #self.data[val[0]] = val[1]
             self.latest_log_position = val[0]
             self.dl.write_data(val[1], self.latest_log_position)
             #self.balance = self.dl.get_current_value()
@@ -191,8 +191,8 @@ class Paxos:
             else:
                 self.state = 4
                 # retry in next round
-            self.my_success.set()
-            self.my_success1.set()
+            #self.my_success.set()
+            #self.my_success1.set()
             #msg = str("DECIDE:" + str(bal) + ":" + str(val))
             #self.send_to_all(msg, self.ip_list, self.port_list)
             #print "Current Data:", self.data
@@ -209,7 +209,7 @@ class Paxos:
             else:
                 #print "DECIDED ON:", val
                 self.decided = True
-                self.data[val[0]] = val[1]
+                #self.data[val[0]] = val[1]
                 self.latest_log_position = val[0]
                 #self.latest_log_position += 1
                 self.latest_decided_val = val
@@ -222,35 +222,15 @@ class Paxos:
                     # retry in next round
                 else:
                     self.state = 3
-                self.my_success.set()
+                #self.my_success.set()
         except Exception as ex:    
             print "Exception occurred in handle_decide ", ex
-
-    '''
-    def handle_inquire(self, data):
-        data_list = data.split(":")
-        pos = int(data_list[1])
-        ip = data_list[2]
-        port = int(data_list[3])
-        l = self.dl.read_from_pos(pos) #TODO:assumes no None in between
-        resp = "STATUS:"+pos+":"+str(l)
-        self.send_single(resp, ip, port)
-
-    def handle_status(self, data):
-        data_list = data.split(":")
-        pos = int(data_list[1])
-        if not pos<=self.latest_log_position:
-            return
-        self.status_count += 1
-        if self.status_count == self.majority:
-    '''
 
     def handle_give(self, data):
         try:
             data_list = data.split(':')
 	    latest_pos = int(data_list[2])
             givelist = eval(data_list[1])
-	    print "handling give", self.latest_log_position, latest_pos
 	    for i in range(0,self.latest_log_position - latest_pos):
 		givelist.append(i+latest_pos)
 	    if len(givelist) == 0:
@@ -260,23 +240,18 @@ class Paxos:
             print "Exception occurred in handle_give: %s" % ex
 
     def sync(self):
-        print "Syncing."
         try:
             elist = self.dl.get_empty_position_list()
             msg = "GIVE:" + str(elist) + ":" + str(self.latest_log_position)
             max_size = 0
             newdict = {}
             for ip, port in zip(self.ip_list, self.port_list):
-                print "Sending ", msg, " to ", ip, port
                 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 try:
                     client.connect((ip, port))
                     client.send(msg)
-                    print "sent give, waiting for recv"
                     resp = client.recv(BUFFER_SIZE)
-                    print "Recv", resp
                     resp_dict = eval(resp)
-                    print "Revcd dict", resp_dict, type(resp_dict)
                     for key, val in resp_dict.iteritems():
                         if not key in newdict:
                             newdict[key] = val
@@ -284,12 +259,10 @@ class Paxos:
                     print "Connection error in sync."
                 if client:
                     client.close()
-            print "updating with dict"
             if len(newdict)>0:
                 self.dl.update(newdict)
                 self.balance = self.dl.get_current_value()
 		self.latest_log_position = self.dl.latest_position
-            print "Sync complete"
         except Exception as ex:
             print "Exception occurred in sync: %s" % ex
         #finally:
@@ -307,7 +280,7 @@ class Paxos:
                 if not data:
                     break
                 else:
-                    print "received ", data
+                    #print "received ", data
                     if data.startswith("PREPARE"):
                         #print "sending ack ", msg
                         #self.send_single(msg, ip=self.ip_list[0], port=self.port_list[0])
@@ -327,6 +300,23 @@ class Paxos:
                     elif data.startswith("GIVE"):
                         resp = self.handle_give(data)
                         client_sock.send(str(resp))
+                    elif data.upper().startswith("DEPOSIT"):
+                        data_list = data.split(' ')
+                        if len(data_list)<2:
+                            msg = "FAILURE"
+                        else:
+                            msg = self.deposit(float(data_list[1]))
+                        client_sock.send(str(msg))
+                    elif data.upper().startswith("WITHDRAW"):
+                        data_list = data.split(' ')
+                        if len(data_list)<2:
+                            msg = "FAILURE"
+                        else:
+                            msg = self.withdraw(float(data_list[1]))
+                        client_sock.send(str(msg))
+                    elif data.upper().startswith("BALANCE"):
+                        msg = self.get_balance()
+                        client_sock.send(str(msg))
                     elif data.startswith("DECIDE"):
                         #self.handle_decide(data)
                         msg = "Msg from server: Got - DECIDE"
@@ -358,7 +348,6 @@ class Paxos:
         except Exception as ex:
             print "Exception occurred in start_server: %s" % ex
         finally:
-            # TODO: save paxos state to disk
             if self.server_sock:
                 self.server_sock.close()
 
@@ -368,7 +357,7 @@ class Paxos:
 
     def send_single(self, message, ip, port=PORT):
         try:
-            print "Sending ", message, " to ", ip, port
+            #print "Sending ", message, " to ", ip, port
             client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             client.connect((ip, port))
             client.send(message)
@@ -380,7 +369,7 @@ class Paxos:
 
     def send_to_all(self, message, ip_list, port_list):
         try:
-            print "Sending ", message, " to all "
+            #print "Sending ", message, " to all "
             for ip, port in zip(ip_list, port_list):
                 try:
                     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -407,9 +396,43 @@ class Paxos:
             else:
                 amt = float(l)
             if amt<0:
-                print "Withdraw ", amt
+                print "Withdraw ", (-1)*amt
             else:
                 print "Deposit ", amt
+
+     def deposit(self, amount):
+        #print "Trying to deposit amount ", amount
+        p.sync()
+        val = (p.latest_log_position+1, amount, p.ip)
+        p.prepare(val)
+        time.sleep(3)
+        if p.state==3:
+            print "Deposit Succeeded!"
+            msg = "SUCCESS"
+        else:
+            print "Deposit Failed!! Please retry!!",
+            msg = "FAILURE"
+        p.state=0
+        return msg
+
+    def withdraw(self, amount):
+        if amount>p.get_balance():
+            print "Not enough balance! Try lesser amount."
+            continue
+        amount *= -1
+        #print "Trying to withdraw amount ", amount
+        p.sync()
+        val = (p.latest_log_position+1, amount, p.ip)
+        p.prepare(val)
+        time.sleep(3)
+        if p.state==3:
+            print "Withdraw Succeeded!"
+            msg = "SUCCESS"
+        else:
+            print "Withdraw Failed!! Please retry!!",
+            msg = "FAILURE"
+        p.state=0
+        return msg
 
 try:
     if len(sys.argv)<2:
@@ -426,12 +449,12 @@ try:
         conf = f.readlines()
     def_ballot = int(conf[0])
     def_ballot = int(sys.argv[2]) #TODO: remove this
-    print "default ballot:", def_ballot
+    #print "default ballot:", def_ballot
 
     for x in ipport:
         ip_list.append(x.split(':')[0])
         port_list.append(int(x.split(':')[1]))
-    print "iplst:", ip_list, "ports:", port_list
+    #print "iplst:", ip_list, "ports:", port_list
     p = Paxos(ip_list[0], ip_list[1], port_list[0], ip_list=ip_list[2:], port_list=port_list[2:], def_ballot=def_ballot)
     #thread.start_new_thread(p.start_server, ())
     tt = threading.Thread(target=p.start_server)
@@ -448,7 +471,6 @@ try:
             print "Wrong Commnad. Try again."
             continue
         op = varlist[0].lower()
-        print "op=", op
         rem = varlist[1].split(')')
         if len(rem)<2:
             print "Wrong Commnad. Try again."
@@ -460,33 +482,9 @@ try:
             print "Printing log: "
             p.print_log()
         elif op=="deposit":
-            amount = float(rem[0])
-            print "Trying to deposit amount ", amount
-            p.sync()
-            val = (p.latest_log_position+1, amount, p.ip)
-            p.prepare(val)
-            time.sleep(3)
-            if p.state==3:
-                print "Deposit Succeeded!"
-            else:
-                print "Deposit Failed!! Please retry!!",
-            p.state=0
+            p.deposit(float(rem[0]))
         elif op=="withdraw":
-            amount = float(rem[0])
-            if amount>p.get_balance():
-                print "Not enough balance! Try lesser amount."
-                continue
-            amount *= -1
-            print "Trying to withdraw amount ", amount
-            p.sync()
-            val = (p.latest_log_position+1, amount, p.ip)
-            p.prepare(val)
-            time.sleep(3)
-            if p.state==3:
-                print "Withdraw Succeeded!"
-            else:
-                print "Withdraw Failed!! Please retry!!",
-            p.state=0
+            p.deposit(float(rem[0]))
         elif op=="fail":
             print "Failing this node."
         elif op=="unfail":

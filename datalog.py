@@ -101,7 +101,7 @@ class DataLog:
        for i in range(0,len(current_list)):
             if(current_list[i] == 'None'):
                 empty_pos_list.append(i)
-       print empty_pos_list
+       #print empty_pos_list
        f.close()
        return empty_pos_list
 
@@ -113,7 +113,7 @@ class DataLog:
                 if val<len(current_list) and current_list[val] != 'None':
                         filled_dict[val] = current_list[val]
         f.close()
-        print filled_dict
+        #print filled_dict
         return filled_dict
 
     def update(self, newdict):
@@ -126,7 +126,7 @@ class DataLog:
         #print current_list
         for key,val in newdict.iteritems():
                     current_list[key] = val
-        print current_list
+        #print current_list
         f.close()
 
         fnew = os.open('updated_log.txt', os.O_WRONLY | os.O_CREAT | os.O_EXCL)
