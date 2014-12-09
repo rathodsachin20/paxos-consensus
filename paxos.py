@@ -1,4 +1,4 @@
-#from datalog import DataLog
+from datalog import DataLog
 import socket
 import threading
 import sys
@@ -10,9 +10,9 @@ PORT = 27100
 BUFFER_SIZE = 64
 
 class Paxos:
-
-#    dl = DataLog()
+    #global dl 
     def __init__(self, localip, myip, listen_port, ip_list, port_list, def_ballot):
+        self.dl = DataLog('log'+str(listen_port))
         self.data = [None]*40
         self.latest_log_position = -1
         self.localip = localip
@@ -43,6 +43,7 @@ class Paxos:
         self.my_success1 = threading.Event()
         self.my_success1.clear()
         self.state = 0 # 0-initial, 1-sent preapre/waiting for acks, 2-got acks, waiting for accepts, 3-got myvalue accepted, 4-failed/got someone else value accepted
+	self.dl.create_log()
 
     def prepare(self, val):
         #if self.my_oldval != (-1, -1.0):
@@ -57,13 +58,13 @@ class Paxos:
         self.ballot_num += self.def_ballot+1
         self.recd_maj_acks = False
         self.decided = False
-        msg = str("PREPARE:"+str(self.ballot_num)+":"+self.ip+";"+str(p.listen_port))
+        msg = str("PREPARE:"+str(self.ballot_num)+":"+str(self.my_val)+":"+self.ip+";"+str(p.listen_port))
         print "SENDING PREPARE from node ", self.listen_port%5
         self.send_to_all(msg, self.ip_list, self.port_list)
         self.state = 1
 
-    def get_prepare_response(self, bal):
-        if bal > self.ballot_num:
+    def get_prepare_response(self, bal, val):
+        if bal > self.ballot_num and val[0]>self.latest_log_position:
             self.ballot_num = bal
             reply = "ACK:" + str(bal) + ":" + str(self.accept_num) + ":" + str(self.accept_val)
         else:
@@ -169,7 +170,8 @@ class Paxos:
             print "DECIDED ON:", val
             self.decided = True
             self.data[val[0]] = val[1]
-            self.latest_log_position = val[0]
+	    self.latest_log_position = val[0]
+            self.dl.write_data(val[1], self.latest_log_position)
             #self.latest_log_position += 1
             self.latest_decided_val = val
             self.accept_num = 0
@@ -216,6 +218,9 @@ class Paxos:
                 self.my_success.set()
         except Exception as ex:    
             print "Exception occurred in handle_decide ", ex
+    
+    def inquire(self, data):
+       return 
 
     def req_handler(self, client_sock, addr):
         try:
@@ -231,10 +236,11 @@ class Paxos:
 			data_list = data.split(':')
 			#print "Datalist prepare", data_list
                         ballot_num = int(data_list[1])
+			val = eval(data_list[2])
                         #print "ballotnum recd", ballot_num, " my ballot_num", self.ballot_num
-                        resp = self.get_prepare_response(ballot_num)
+                        resp = self.get_prepare_response(ballot_num, val)
                         #print "prepare response:", resp
-                        self.send_single(resp, ip=data_list[2].split(';')[0], port=int(data_list[2].split(';')[1]))
+                        self.send_single(resp, ip=data_list[3].split(';')[0], port=int(data_list[3].split(';')[1]))
                         #client_sock.send(resp)
                     elif data.startswith("ACK") or data.startswith("NACK"):
                         self.handle_ack(data)
@@ -243,6 +249,8 @@ class Paxos:
                     elif data.startswith("DECIDE"):
                         #self.handle_decide(data)
                         msg = "Msg from server: Got - DECIDE"
+		    elif data.startswith("INQUIRE"):
+		        self.inquire(data)
                     else:
                         msg = "Msg from server: Got data - %s" % data
             client_sock.close()
@@ -368,7 +376,10 @@ try:
             p.state=0
             print p.data
         elif var.startswith('p'):
-	    print p.data
+	   #print p.data
+	    print p.dl.read_data_all()
+        elif var.startswith('b'):
+	    print p.dl.get_current_value()
         elif var.startswith("a"):
             port = int(port_list[0])
             for i in xrange(5):
