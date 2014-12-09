@@ -248,7 +248,12 @@ class Paxos:
     def handle_give(self, data):
         try:
             data_list = data.split(':')
+	    latest_pos = data_list[2]
             givelist = eval(data_list[1])
+	    for i in range(0,self.latest_position - latest_pos):
+		givelist.append(i+latest_pos+1)
+	    if len(givelist) == 0:
+		return {}
             return self.dl.get_filled_dict(givelist)
         except Exception as ex:
             print "Exception occurred in handle_give: %s" % ex
@@ -259,7 +264,7 @@ class Paxos:
             elist = self.dl.get_empty_position_list()
             if len(elist)==0:
                 return
-            msg = "GIVE:" + str(elist)
+            msg = "GIVE:" + str(elist) + ":" + self.latest_position
             max_size = 0
             newdict = {}
             for ip, port in zip(self.ip_list, self.port_list):
