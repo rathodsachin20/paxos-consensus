@@ -1,16 +1,14 @@
-N California
-ssh -i Consensus4.pem ec2-user@54.67.99.117
-ssh -i Consensus4.pem ec2-user@54.67.107.16
+Singapore
+ssh -i Consensus1.pem ec2-user@54.169.183.189
 
 N Virginia
 ssh -i Consensus2.pem ec2-user@54.172.118.132
-ssh -i Consensus.pem ec2-user@54.174.206.131
 
 Ireland
 ssh -i Consensus3.pem ec2-user@54.154.43.0
 
-Singapore
-ssh -i Consensus1.pem ec2-user@54.169.183.189
+N California
+ssh -i Consensus4.pem ec2-user@54.67.99.117
 
 Sao Paulo
 ssh -i Consensus5.pem ec2-user@54.94.232.45
