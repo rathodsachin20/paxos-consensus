@@ -248,10 +248,11 @@ class Paxos:
     def handle_give(self, data):
         try:
             data_list = data.split(':')
-	    latest_pos = data_list[2]
+	    latest_pos = int(data_list[2])
             givelist = eval(data_list[1])
-	    for i in range(0,self.latest_position - latest_pos):
-		givelist.append(i+latest_pos+1)
+	    print "handling give", self.latest_log_position, latest_pos
+	    for i in range(0,self.latest_log_position - latest_pos):
+		givelist.append(i+latest_pos)
 	    if len(givelist) == 0:
 		return {}
             return self.dl.get_filled_dict(givelist)
@@ -262,9 +263,7 @@ class Paxos:
         print "Syncing."
         try:
             elist = self.dl.get_empty_position_list()
-            if len(elist)==0:
-                return
-            msg = "GIVE:" + str(elist) + ":" + self.latest_position
+            msg = "GIVE:" + str(elist) + ":" + str(self.latest_log_position)
             max_size = 0
             newdict = {}
             for ip, port in zip(self.ip_list, self.port_list):
@@ -289,6 +288,7 @@ class Paxos:
             if len(newdict)>0:
                 self.dl.update(newdict)
                 self.balance = self.dl.get_current_value()
+		self.latest_log_position = self.dl.latest_position
             print "Sync complete"
         except Exception as ex:
             print "Exception occurred in sync: %s" % ex
