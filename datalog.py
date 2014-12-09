@@ -1,4 +1,5 @@
 import os
+import time
 
 class DataLog:
 
@@ -12,11 +13,9 @@ class DataLog:
     # Create log
     def create_log(self):
         try:
-            print "Creating log", self.logname
             fd = os.open(self.logname, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
             f = os.fdopen(fd,'w')
             f.close()
-            print "Created log", self.logname
         except Exception as ex:
             print "Exception while creating log:", ex
             #return
@@ -66,7 +65,7 @@ class DataLog:
         f = open(self.logname,'r')
         st = f.read()
         L = []
-        for x in range(0, self.get_latest_position()):
+        for x in range(0, self.latest_position):
             L.append(st.split(',')[x])
         f.close()
         return L
@@ -76,20 +75,24 @@ class DataLog:
 
     # Calculate current value from log (use when recovered from crash)
     def read_current_value(self):
-        f = open(self.logname,'r')
-        #f = open(self.logname,'r')
-        st = f.read()
-        total = 0.0
-        for x in range(0,self.get_latest_position()):
-            val = 0.0
-            strval = st.split(',')[x]
-            if strval=='None':
-                val = 0
-            else:
-                val = float(strval)
-            total += val
-        f.close()
-        return total
+        try:
+            f = open(self.logname,'r')
+            #f = open(self.logname,'r')
+            st = f.read()
+            stlist = st.split(',')
+            total = 0.0
+            for x in range(0,self.latest_position):
+                val = 0.0
+                strval = stlist[x]
+                if strval=='None':
+                    val = 0.0
+                else:
+                    val = float(strval)
+                total += val
+            f.close()
+            return total
+        except Exception as ex:
+            print "Exception in read_current_value", ex
     
     def get_empty_position_list(self):
        f = open(self.logname,'r')
@@ -125,14 +128,16 @@ class DataLog:
                     current_list[key] = val
         print current_list
         f.close()
-        fnew = open('updated_log.txt','w')
+
+        fnew = os.open('updated_log.txt', os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+        f = os.fdopen(fnew,'w')
         for item in current_list:
-                fnew.write("%s,"%item)
+                f.write("%s,"%item)
         self.delete_log(self.logname)
-        os.rename(fnew.name,self.logname)
-        print "balnce b4:", self.balance
+        f.close()
+        os.rename('updated_log.txt', self.logname)
+        time.sleep(1)
         self.balance = self.read_current_value()
-        print "balnce aftr4:", self.balance
 
 
     # Delete log

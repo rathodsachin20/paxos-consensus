@@ -377,10 +377,13 @@ class Paxos:
         try:
             print "Sending ", message, " to all "
             for ip, port in zip(ip_list, port_list):
-                client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                client.connect((ip, port))
-                client.send(message)
-                client.close()
+                try:
+                    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    client.connect((ip, port))
+                    client.send(message)
+                    client.close()
+                except Exception as ex:
+                    print "Connection erroe in send_to_all ", ex
         except Exception as ex:
             print "Exception occurred in send_to_all: %s %s" % (ex, ip)
         finally:
